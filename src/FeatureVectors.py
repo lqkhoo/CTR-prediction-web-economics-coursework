@@ -26,6 +26,13 @@ class FV():
 	
 	def keys(self):
 		return self._set.keys()
+	
+		# Returns full representation of vector as a dict
+		
+		d = self._set.keys().copy() # Acquire all default values
+		for key in self._dict.keys():
+			d[key] = self._dict[key] # Replace defaults with non-sparse entries
+		return d
 
 class FeatureVectors():
 	# Sparse feature set representation
