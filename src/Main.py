@@ -77,7 +77,7 @@ def _generate_fvs(domains_filter = None):
 
 # Filter only domains with >0 clicks and generate their fvs
 clicked_domains, all_domains = _find_clicked_domains()
-training_vectors = _generate_fvs(clicked_domains)
+training_vectors, n, dim = _generate_fvs(clicked_domains)
 
 
 print(len(training_vectors.keys()))
