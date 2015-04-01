@@ -21,15 +21,15 @@ def _tokenize_line(line):
 	return dat
 
 
-def _find_clicked_domains():
-	# First pass - find which domains have more than one click
+def _find_clicked_domains(file_path):
+	# Runs through given data set and returns all domains with at least one clicks
 	# Returns clicked_domains, all_domains
-	print('First pass. Find clicked domains')
+	dprint(''.join(['Finding clicked domains in ', file_path]))
 	
 	all_domains = {}
 	clicked_domains = {}
 	i = 0
-	for line in open(TRAIN_DATA_PATH, 'r'):
+	for line in open(file_path, 'r'):
 		
 		dat = _tokenize_line(line)
 		label = int(dat[0]) # training set
@@ -50,22 +50,22 @@ def _find_clicked_domains():
 	return clicked_domains, all_domains
 
 
-def _generate_fvs(domains_filter = None):
-	# Second pass - generate vectors but with optional filter on domains
+def _generate_fvs(file_path, is_training_data, domains_filter = None, key_filter = None):
+	# Generate feature vectors with optional filter on domains
 	# Otherwise generate vectors for every line
 	# Returns fvs, n, dim
-	dprint('Second pass. Generate fvs')
+	dprint(''.join(['Generating fvs from ', file_path]))
 	
 	fvs = FeatureVectors()
 	i = 0
-	for line in open(TRAIN_DATA_PATH, 'r'):
+	for line in open(file_path, 'r'):
 		
 		dat = _tokenize_line(line)
 		domain = dat[11]
 		
-		if domain in domains_filter or domains_filter == None:
+		if domains_filter == None or domain in domains_filter:
 			# Vectorize
-			v, k = fvs.new_vector(dat, is_training_data = True)
+			v, k = fvs.new_vector(dat, is_training_data = is_training_data, kf = key_filter)
 		
 		i += 1
 		if i % 100000 == 0: dprint(''.join(['   Processed: ', str(i), ' lines']))
@@ -75,10 +75,19 @@ def _generate_fvs(domains_filter = None):
 	dprint(''.join([str(i), ' lines given. ', str(n), ' ', str(dim), '-d-vectors generated. (', str(100*n/i) ,'%)']))
 	return fvs, n, dim
 
-# Filter only domains with >0 clicks and generate their fvs
-clicked_domains, all_domains = _find_clicked_domains()
-training_vectors, n, dim = _generate_fvs(clicked_domains)
 
+# Script ---
 
-print(len(training_vectors.keys()))
-print(len(training_vectors.vectors()))
+# Find which domains have at least one click in the training set
+clicked_domains, all_domains = _find_clicked_domains(TRAIN_DATA_PATH)
+
+# Generate training set, ignoring domains without any clicks at all
+training_vectors, n_train, dim_train = \
+_generate_fvs(TRAIN_DATA_PATH, is_training_data = True, domains_filter = clicked_domains)
+
+# Generate test set, limiting features to those in training set
+training_set_keys = training_vectors.keys()
+
+test_vectors, n_test, dim_test = \
+_generate_fvs(TEST_DATA_PATH, is_training_data = False, domains_filter = None, key_filter = training_set_keys)
+
