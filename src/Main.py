@@ -21,8 +21,9 @@ def _tokenize_line(line):
 	return dat
 
 
-def _find_clicked_domains(file_path):
+def _find_clicked_domains(file_path, limit = None):
 	# Runs through given data set and returns all domains with at least one clicks
+	# limit specifies a line limit to read in partial file
 	# Returns clicked_domains, all_domains
 	dprint(''.join(['Finding clicked domains in ', file_path]))
 	
@@ -43,6 +44,8 @@ def _find_clicked_domains(file_path):
 		
 		i += 1
 		if i % 100000 == 0: dprint(''.join(['   Processed: ', str(i), ' lines']))
+		if limit != None and i >= limit:
+			break;
 	
 	la = len(all_domains)
 	lc = len(clicked_domains)
@@ -50,9 +53,10 @@ def _find_clicked_domains(file_path):
 	return clicked_domains, all_domains
 
 
-def _generate_fvs(file_path, is_training_data, domains_filter = None, key_filter = None):
+def _generate_fvs(file_path, is_training_data, domains_filter = None, key_filter = None, limit = None):
 	# Generate feature vectors with optional filter on domains
 	# Otherwise generate vectors for every line
+	# limit specifies a line limit to read in partial file
 	# Returns fvs, n, dim
 	dprint(''.join(['Generating fvs from ', file_path]))
 	
@@ -69,6 +73,8 @@ def _generate_fvs(file_path, is_training_data, domains_filter = None, key_filter
 		
 		i += 1
 		if i % 100000 == 0: dprint(''.join(['   Processed: ', str(i), ' lines']))
+		if limit != None and i >= limit:
+			break;
 	
 	n = len(fvs.vectors())
 	dim = len(fvs.keys())
@@ -78,16 +84,17 @@ def _generate_fvs(file_path, is_training_data, domains_filter = None, key_filter
 
 # Script ---
 
+FILTER_CLICKED_DOMAINS = True
+
 # Find which domains have at least one click in the training set
-clicked_domains, all_domains = _find_clicked_domains(TRAIN_DATA_PATH)
+else:
+	clicked_domains = None
 
 # Generate training set, ignoring domains without any clicks at all
-training_vectors, n_train, dim_train = \
-_generate_fvs(TRAIN_DATA_PATH, is_training_data = True, domains_filter = clicked_domains)
+
+xs, ys = training_vectors.as_scipy_sparse()
 
 # Generate test set, limiting features to those in training set
 training_set_keys = training_vectors.keys()
 
-test_vectors, n_test, dim_test = \
-_generate_fvs(TEST_DATA_PATH, is_training_data = False, domains_filter = None, key_filter = training_set_keys)
-
+test_vectors, n_test, dim_test = _generate_fvs(TEST_DATA_PATH, is_training_data = False, domains_filter = None, key_filter = training_set_keys)

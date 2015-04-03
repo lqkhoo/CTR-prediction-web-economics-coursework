@@ -1,3 +1,7 @@
+import math
+import numpy as np
+from scipy.sparse import bsr_matrix, csr_matrix, dok_matrix
+
 class FV():
 	# Sparse feature vector representation
 	
@@ -5,8 +9,8 @@ class FV():
 		self._set = fvs # the set this feature vector belongs to. FeatureVectors instance.
 		self._dict = {}
 	
-	def __getattr__(self, key):
-		if key in self._dict:
+	def __getitem__(self, key):
+		if not self.is_sparse_key(key):
 			return self._dict[key]
 		elif self._set.keys()[key] == None:
 			raise KeyError(key) # Raise if feature not expected to be sparse and has no default value
@@ -24,8 +28,17 @@ class FV():
 		# This displays the non-sparse fields only
 		return self._dict.__str__()
 	
+	def is_sparse_key(self, key):
+		if key in self._dict:
+			return False
+		else:
+			return True
+	
 	def keys(self):
 		return self._set.keys()
+	
+	def dense_keys(self):
+		return self._dict
 	
 	def as_dict(self):
 		# Returns full representation of vector as a dict
@@ -57,7 +70,7 @@ class FeatureVectors():
 		return self._vectors
 	
 	def add_key_value(self, key, value):
-		self.keys()[key] = value
+		self._keys[key] = value
 	
 	def set_keys(self, keys):
 		# Replaces the current set of keys mapping default values with the given one.
@@ -79,6 +92,51 @@ class FeatureVectors():
 		for feature_vectors in feature_vectors_instances:
 			feature_vectors.set_keys(all_keys)
 		return feature_vectors_instances
+	
+	def as_scipy_sparse(self):
+		
+		# Copy all valid keys
+		x_keys = self.keys().copy()
+		del x_keys['label']
+		
+		# Sparse keys with nonzero default values (if any)
+		x_nz = {}
+		for key in x_keys.keys():
+			if x_keys[key] == None or x_keys[key] == 0:
+				continue
+			x_nz[key] = x_keys[key]
+		
+		# x_keys now maps keys to indices in numpy array
+		i = 0
+		for key in x_keys:
+			x_keys[key] = i
+			i += 1
+		
+		n = len(self.vectors())
+		dim = len(x_keys)
+		xs = dok_matrix((n, dim), dtype=np.int32)
+		ys = dok_matrix((n, 1), dtype=np.int32)
+		
+		for i in range(n):
+			vector = self.vectors()[i]
+			
+			# dense keys
+			for key in vector.dense_keys():
+				if key == 'label':
+					continue
+				j = x_keys[key]
+				xs[i, j] = vector[key]
+				
+			# nonzero sparse keys
+			for key in x_nz:
+				j = x_keys[key]
+				xs[(i, j)] = vector[key]
+				
+			ys[i, 0] = vector['label']
+		
+			if i % 10000 == 0:
+				print("   Generating numpy sparse matrices. Vectors processed: " + str(i))
+		return xs, ys
 	
 	@classmethod
 	def _set_vector(cls, vector, key, value, default_value, kf):
@@ -115,7 +173,7 @@ class FeatureVectors():
 		h = int(dat[16+o])
 		FeatureVectors._set_vector(vector, 'ad-w', w, None, kf) # ad width
 		FeatureVectors._set_vector(vector, 'ad-h', h, None, kf) # ad height
-		FeatureVectors._set_vector(vector, 'ad-a', w * h, None, kf) # DEPENDENT VARIABLE # ad area
+		FeatureVectors._set_vector(vector, 'ad-la', int(math.sqrt(w * h)), None, kf) # DEPENDENT VARIABLE # ad sqrt area
 		FeatureVectors._set_vector(vector, 'ad-v', dat[17+o], None, kf) # ad visibility
 		
 		# Sparse features
