@@ -87,10 +87,13 @@ def _generate_fvs(file_path, is_training_data, domains_filter = None, key_filter
 FILTER_CLICKED_DOMAINS = True
 
 # Find which domains have at least one click in the training set
+if FILTER_CLICKED_DOMAINS == True:
+	clicked_domains, all_domains = _find_clicked_domains(TRAIN_DATA_PATH)
 else:
 	clicked_domains = None
 
 # Generate training set, ignoring domains without any clicks at all
+training_vectors, n_train, dim_train = _generate_fvs(TRAIN_DATA_PATH, is_training_data = True, domains_filter = clicked_domains)
 
 xs, ys = training_vectors.as_scipy_sparse()
 

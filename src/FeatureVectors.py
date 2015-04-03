@@ -130,7 +130,7 @@ class FeatureVectors():
 			# nonzero sparse keys
 			for key in x_nz:
 				j = x_keys[key]
-				xs[(i, j)] = vector[key]
+				xs[i, j] = vector[key]
 				
 			ys[i, 0] = vector['label']
 		
