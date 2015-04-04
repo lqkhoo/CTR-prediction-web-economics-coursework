@@ -167,7 +167,7 @@ class FeatureVectors():
 			if i % 10000 == 0:
 				print("   Vectors processed: " + str(i))
 		
-		xs = xs.tocsr()
+		#xs = xs.tocsr()
 		ys = np.array(ys)
 		return xs, ys, x_keys
 	
