@@ -119,8 +119,10 @@ class FeatureVectors():
 		return feature_vectors_instances
 	
 	def as_scipy_sparse(self):
+		# Gives numpy sparse matrix representations of xs and ys.
+		# Returns xs, ys, and x_keys, which map feature keys to indices in the xs matrix
 		
-		print("Generating numpy sparse matrices.")
+		print(''.join(['Generating numpy sparse matrices for ', self.name()]))
 		# Copy all valid keys
 		x_keys = self.keys().copy()
 		del x_keys['label']
@@ -141,7 +143,8 @@ class FeatureVectors():
 		n = len(self.vectors())
 		dim = len(x_keys)
 		xs = dok_matrix((n, dim), dtype=np.float32)
-		ys = dok_matrix((n, 1), dtype=np.float32)
+		# ys = dok_matrix((n, 1), dtype=np.float32)
+		ys = []
 		
 		for i in range(n):
 			vector = self.vectors()[i]
@@ -158,12 +161,15 @@ class FeatureVectors():
 				j = x_keys[key]
 				xs[i, j] = vector[key]
 				
-			ys[i, 0] = vector['label']
+			# ys[i, 0] = vector['label']
+			ys.append(vector['label'])
 		
 			if i % 10000 == 0:
 				print("   Vectors processed: " + str(i))
 		
-		return xs, ys
+		xs = xs.tocsr()
+		ys = np.array(ys)
+		return xs, ys, x_keys
 	
 	@classmethod
 	def _set_vector(cls, vector, key, value, default_value, kf):
@@ -202,7 +208,7 @@ class FeatureVectors():
 			h = int(dat[16+o])
 			FeatureVectors._set_vector(vector, 'ad-w', w, None, kf) # ad width
 			FeatureVectors._set_vector(vector, 'ad-h', h, None, kf) # ad height
-			FeatureVectors._set_vector(vector, 'ad-la', int(math.sqrt(w * h)), None, kf) # DEPENDENT VARIABLE # ad sqrt area
+			FeatureVectors._set_vector(vector, 'ad-sa', int(math.sqrt(w * h)), None, kf) # DEPENDENT VARIABLE # ad sqrt area
 			FeatureVectors._set_vector(vector, 'ad-v', dat[17+o], None, kf) # ad visibility
 			
 			# Sparse features
