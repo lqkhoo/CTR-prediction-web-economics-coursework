@@ -136,8 +136,8 @@ training_subsampled_indices.extend(training_pos_indices)
 training_subsampled_indices.extend(training_neg_indices)
 training_vectors.set_vectors([training_vectors.vectors()[i] for i in training_subsampled_indices])
 
-model = linear_model.LogisticRegression(C=1.0, penalty='l1', class_weight={1:1, 0: 1.0 / SUBSAMPLE_MULTIPLE})
-# model = linear_model.LogisticRegression(C=1.0, penalty='l1', class_weight={1:1, 0: len(training_pos_indices) / len(training_neg_indices)})
+model = linear_model.LogisticRegression(C=100.0, penalty='l1')
+# model = linear_model.LogisticRegression(C=10.0, penalty='l1', class_weight={1:1, 0: len(training_pos_indices) / len(training_neg_indices)})
 train_xs, train_ys, key_to_index_map = training_vectors.as_scipy_sparse()
 model.fit(train_xs, train_ys)
 
@@ -153,12 +153,38 @@ print(''.join(['Nonzero coefficients: ', str(keyed_coeffs)]))
 
 # Generate test set, read_limiting features to those in training set
 training_set_keys = training_vectors.keys()
-test_vectors, n_test, dim_test = _generate_fvs(TEST_DATA_PATH, name = 'test set', is_training_data = False, domains_filter = None, key_filter = training_set_keys, read_limit = READ_LIMIT)
+test_vectors, n_test, dim_test = _generate_fvs(TEST_DATA_PATH, name = 'test set', is_training_data = False, domains_filter = None, key_filter = training_set_keys, read_limit = 10000)
 test_xs, test_ys, key_to_index_map = test_vectors.as_scipy_sparse()
 test_ys_pred = _get_decision_function(model, test_xs)
 
-f = open(FILE_DIR_PATH + 'out.csv', 'w')
-f.write(''.join(['Id', ',', 'Prediction', '\n']))
-for i in range(len(test_vectors.vectors())):
-	f.write(''.join([str(i+1), ',', str(test_ys_pred[i]), '\n']))
-f.close()
+def _to_info_file(file_path, fvs, ys_pred, keyed_coeffs):
+	dprint(''.join(['Writing f(x) of ', fvs.name(), ' to file...']))
+	
+	keys = sorted(keyed_coeffs.keys())
+	
+	f = open(file_path, 'w')
+	coeffs = ','
+	for key in keys:
+		coeffs += ',' + str(keyed_coeffs[key])
+	coeffs += '\n'
+	f.write(coeffs)
+	
+	key_fields = 'Id' + ',' + 'Prediction'
+	for key in keys:
+		key_fields += ',' + key
+	key_fields += '\n'
+	f.write(key_fields)
+	
+	for i in range(len(fvs.vectors())):
+		key_str = ''
+		vector = fvs.vectors()[i]
+		for key in keys:
+			key_str += ',' + str(vector[key])
+		key_str += '\n'
+		f.write(''.join([str(i+1), ',', str(ys_pred[i]), key_str]))
+	f.close()
+
+_to_info_file(FILE_DIR_PATH + 'test_out.csv', test_vectors, test_ys_pred, keyed_coeffs)
+
+training_ys_pred = _get_decision_function(model, train_xs)
+_to_info_file(FILE_DIR_PATH + 'training_out.csv', training_vectors, training_ys_pred, keyed_coeffs)

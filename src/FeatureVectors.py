@@ -203,7 +203,8 @@ class FeatureVectors():
 		if label_only == False:
 			wknd = 1 if (dat[1+o] == '1' or dat[1+o] == '2') else 0 # 1==Sat, 2==Sun
 			FeatureVectors._set_vector(vector, 'wknd', wknd, None, kf)
-			FeatureVectors._set_vector(vector, 'hr', int(dat[2+o]), None, kf)
+			dt = 1 if int(dat[2+o]) < 8 or int(dat[2+o]) > 17 else 0 # daytime
+			FeatureVectors._set_vector(vector, 'dt', dt, None, kf)
 			w = int(dat[15+o])
 			h = int(dat[16+o])
 			FeatureVectors._set_vector(vector, 'ad-w', w, None, kf) # ad width
