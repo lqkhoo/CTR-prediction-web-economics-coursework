@@ -142,7 +142,7 @@ class FeatureVectors():
 		
 		n = len(self.vectors())
 		dim = len(x_keys)
-		xs = dok_matrix((n, dim), dtype=np.float32)
+		xs = dok_matrix((n, dim), dtype=np.int32)
 		# ys = dok_matrix((n, 1), dtype=np.float32)
 		ys = []
 		

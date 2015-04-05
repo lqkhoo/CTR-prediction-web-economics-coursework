@@ -127,6 +127,8 @@ training_vectors, n_train, dim_train = _generate_fvs(TRAIN_DATA_PATH, name = 'tr
 # Deterministically select the first n negative training examples for reproducibility
 dprint(''.join(['Subsampling negative training examples at ', str(SUBSAMPLE_MULTIPLE), 'x number of positive training examples.']))
 training_pos_indices = training_vectors.filter_vectors_to_indices({'label': 1})
+print("pos")
+print(len(training_pos_indices))
 training_neg_indices = training_vectors.filter_vectors_to_indices({'label': 0})
 #shuffle(training_neg_indices)
 
