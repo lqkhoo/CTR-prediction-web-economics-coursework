@@ -1,5 +1,6 @@
 import math
 import numpy as np
+
 from scipy.sparse import bsr_matrix, csr_matrix, dok_matrix
 
 class FV():
@@ -51,14 +52,34 @@ class FV():
 class FeatureVectors():
 	# Sparse feature set representation
 	
-	def __init__(self, keys = {}, name = "Unnamed feature vector set"):
-		# Optionally, pass in keys from another FeatureVectors instance. 
+	DEFAULT_NAME = "Unnamed feature vector set"
+	
+	def __init__(self, keys = {}, vectors = [], name = DEFAULT_NAME):
+		# Optionally, pass in keys and/or vectors (FV instances) from another FeatureVectors instance.
 		self._name = name # Name of set. Not used for programmatic purposes
 		self._keys = keys # Remembers valid keys. Maps keys to their default values
 		self._vectors = []
 	
 	def __str__(self):
 		return self._dict.__str__()
+	
+	@classmethod
+	def from_feature_vectors(cls, fvs, indices = None):
+		# Instantiates a new FeatureVectors class another one.
+		# If indices == None, clones the instance. If given a list of indices, this only
+		#   copies the FVs in self._vectors for the given indices.
+		return cls(keys = fvs.keys(), name = fvs.name() + " copy", vectors = [fvs.vectors()[i] for i in indices])
+	
+	def filter_vectors_to_indices(self, kvs = {}):
+		# Given a list of key-value pairs, returns list of indices of FVs with fields matching the given value for that key.
+		indices = []
+		for i in range(len(self.vectors())):
+			fv = self.vectors()[i]
+			match = True
+			for key in kvs.keys():
+				match = True if fv[key] == kvs[key] else False
+			if match: indices.append(i)
+		return indices
 	
 	def name(self):
 		return self._name
@@ -73,8 +94,12 @@ class FeatureVectors():
 		self._keys[key] = value
 	
 	def set_keys(self, keys):
-		# Replaces the current set of keys mapping default values with the given one.
+		# Replaces the current set of keys mapping default values with the given one. Use with caution
 		self._keys = keys
+	
+	def set_vectors(self, vectors):
+		# Replaces the current set of vectors with the given one. Use with caution
+		self._vectors = vectors
 	
 	@classmethod
 	def mixin_keys(feature_vectors_instances):
@@ -94,7 +119,10 @@ class FeatureVectors():
 		return feature_vectors_instances
 	
 	def as_scipy_sparse(self):
+		# Gives numpy sparse matrix representations of xs and ys.
+		# Returns xs, ys, and x_keys, which map feature keys to indices in the xs matrix
 		
+		print(''.join(['Generating numpy sparse matrices for ', self.name()]))
 		# Copy all valid keys
 		x_keys = self.keys().copy()
 		del x_keys['label']
@@ -114,8 +142,8 @@ class FeatureVectors():
 		
 		n = len(self.vectors())
 		dim = len(x_keys)
-		xs = dok_matrix((n, dim), dtype=np.int32)
-		#ys = dok_matrix((n, 1), dtype=np.int32)
+		xs = dok_matrix((n, dim), dtype=np.float32)
+		# ys = dok_matrix((n, 1), dtype=np.float32)
 		ys = []
 		
 		for i in range(n):
@@ -133,12 +161,15 @@ class FeatureVectors():
 				j = x_keys[key]
 				xs[i, j] = vector[key]
 				
-			#ys[i, 0] = vector['label']
+			# ys[i, 0] = vector['label']
 			ys.append(vector['label'])
 		
 			if i % 10000 == 0:
-				print("   Generating numpy sparse matrices. Vectors processed: " + str(i))
-		return xs.tocsr(), np.array(ys)
+				print("   Vectors processed: " + str(i))
+		
+		#xs = xs.tocsr()
+		ys = np.array(ys)
+		return xs.tocsr(), ys, x_keys
 	
 	@classmethod
 	def _set_vector(cls, vector, key, value, default_value, kf):
@@ -150,9 +181,10 @@ class FeatureVectors():
 			vector.set(key, value, default_value)
 		return vector
 	
-	def new_vector(self, dat, is_training_data = True, kf = None):
+	def new_vector(self, dat, is_training_data = True, kf = None, label_only = False):
 		# dat is one line in the tsv training file tokenized by splitting on \t
 		# kf is the key filter. If given a dict, this limits the features to the given set.
+		# setting label_only to True generates vectors with only the labels
 		# Hence this method call will not identify / generate any new sparse features
 		# Returns the FV instance, keyset
 		
@@ -168,24 +200,26 @@ class FeatureVectors():
 		
 		# Non-sparse features
 		FeatureVectors._set_vector(vector, 'label', label, None, kf)
-		wknd = 1 if (dat[1+o] == '1' or dat[1+o] == '2') else 0 # 1==Sat, 2==Sun
-		FeatureVectors._set_vector(vector, 'wknd', wknd, None, kf)
-		FeatureVectors._set_vector(vector, 'hr', int(dat[2+o]), None, kf)
-		w = int(dat[15+o])
-		h = int(dat[16+o])
-		FeatureVectors._set_vector(vector, 'ad-w', w, None, kf) # ad width
-		FeatureVectors._set_vector(vector, 'ad-h', h, None, kf) # ad height
-		FeatureVectors._set_vector(vector, 'ad-la', int(math.sqrt(w * h)), None, kf) # DEPENDENT VARIABLE # ad sqrt area
-		FeatureVectors._set_vector(vector, 'ad-v', dat[17+o], None, kf) # ad visibility
-		
-		# Sparse features
-		if label == 1 or label == None:
-			FeatureVectors._set_vector(vector, ''.join(['d-', dat[11+o]]), 1, 0, kf) # domain
-			FeatureVectors._set_vector(vector, ''.join(['dxsid-', dat[11+o], ' ', dat[14+o]]), 1, 0, kf) # domain x ad slot
-			tags = dat[23+o].split(',')
-			for tag in tags:
-				FeatureVectors._set_vector(vector, ''.join(['t-', tag]), 1, 0, kf) # tag
-				FeatureVectors._set_vector(vector, ''.join(['dxt-', dat[11+o], ' ', tag]), 1, 0, kf) # domain x tag
+		if label_only == False:
+			wknd = 1 if (dat[1+o] == '1' or dat[1+o] == '2') else 0 # 1==Sat, 2==Sun
+			FeatureVectors._set_vector(vector, 'wknd', wknd, None, kf)
+			dt = 1 if int(dat[2+o]) < 8 or int(dat[2+o]) > 17 else 0 # daytime
+			FeatureVectors._set_vector(vector, 'dt', dt, None, kf)
+			w = int(dat[15+o])
+			h = int(dat[16+o])
+			FeatureVectors._set_vector(vector, 'ad-w', w, None, kf) # ad width
+			FeatureVectors._set_vector(vector, 'ad-h', h, None, kf) # ad height
+			FeatureVectors._set_vector(vector, 'ad-sa', int(math.sqrt(w * h)), None, kf) # DEPENDENT VARIABLE # ad sqrt area
+			FeatureVectors._set_vector(vector, 'ad-v', dat[17+o], None, kf) # ad visibility
+			
+			# Sparse features
+			if label == 1 or label == None:
+				FeatureVectors._set_vector(vector, ''.join(['d-', dat[11+o]]), 1, 0, kf) # domain
+				FeatureVectors._set_vector(vector, ''.join(['dxsid-', dat[11+o], ' ', dat[14+o]]), 1, 0, kf) # domain x ad slot
+				tags = dat[23+o].split(',')
+				for tag in tags:
+					FeatureVectors._set_vector(vector, ''.join(['t-', tag]), 1, 0, kf) # tag
+					FeatureVectors._set_vector(vector, ''.join(['dxt-', dat[11+o], ' ', tag]), 1, 0, kf) # domain x tag
 		
 		# Register vector in set
 		self.vectors().append(vector)
