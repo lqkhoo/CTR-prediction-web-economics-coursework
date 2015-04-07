@@ -177,9 +177,11 @@ class FeatureVectors():
 		# kf is either None or dict of filter keys. vector is FV instance
 		# Sets new feature into vector and registers default_value as sparse feature
 		#   if is in kf, or kf is None. Otherwise do nothing
+
 		if kf == None or key in kf:
 			vector.set(key, value, default_value)
 		return vector
+
 	
 	def new_vector(self, dat, is_training_data = True, kf = None, label_only = False):
 		# dat is one line in the tsv training file tokenized by splitting on \t
@@ -198,10 +200,112 @@ class FeatureVectors():
 		# Register features ---
 		vector = FV(self)
 		
+		'''
+		Features:
+
+		nonsparse:
+		weekend (binary), daytime (binary), ad width, ad height, sqrt area, ad visibility, ad slot floor price,
+
+		sparse:
+		user id, advertiser id, browser, domain, domain x ad slot, userid x domain, advertiser id x domain, tag,
+		userid x adslot, domain x tag, userid x tag
+
+		'''		
+
+		# Non-sparse features
+		FeatureVectors._set_vector(vector, 'const', 1, 1, kf)
+		FeatureVectors._set_vector(vector, 'label', label, None, kf)
+		if label_only == False:
+			#wknd = dat[1+o] #1 if (dat[1+o] == '1' or dat[1+o] == '2') else 0 # 1==Sat, 2==Sun
+			wknd = 1 if (dat[1+o] == '1' or dat[1+o] == '2') else 0
+			FeatureVectors._set_vector(vector, 'wknd', wknd, None, kf)
+			#dt = dat[2+o] #1 if int(dat[2+o]) < 8 or int(dat[2+o]) > 17 else 0 # daytime
+			dt = 1 if int(dat[2+o]) < 8 or int(dat[2+o]) > 17 else 0
+			FeatureVectors._set_vector(vector, 'dt', dt, None, kf)
+			w = int(dat[15+o])
+			h = int(dat[16+o])
+			FeatureVectors._set_vector(vector, 'ad-w', w, None, kf) # ad width
+			FeatureVectors._set_vector(vector, 'ad-h', h, None, kf) # ad height
+			FeatureVectors._set_vector(vector, 'ad-sa', int(math.sqrt(w * h)), None, kf) # DEPENDENT VARIABLE # ad sqrt area
+			FeatureVectors._set_vector(vector, 'ad-v', dat[17+o], None, kf) # ad visibility
+			FeatureVectors._set_vector(vector, 'ad-fp', dat[19+o], None, kf) # ad slot floor price
+
+			# Sparse features
+			#if label == 1 or label == None:
+			FeatureVectors._set_vector(vector, ''.join(['uid-', dat[5+o]]), 1, 0, kf) # user id
+			FeatureVectors._set_vector(vector, ''.join(['advid-', dat[22+o]]), 1, 0, kf) # advertiser id
+
+			FeatureVectors._set_vector(vector, ''.join(['brws-', dat[6+o]]), 1, 0, kf) # browser
+
+			FeatureVectors._set_vector(vector, ''.join(['d-', dat[11+o]]), 1, 0, kf) # domain
+			FeatureVectors._set_vector(vector, ''.join(['dxsid-', dat[11+o], ' ', dat[14+o]]), 1, 0, kf) # domain x ad slot
+			FeatureVectors._set_vector(vector, ''.join(['uidxd-', dat[5+o], ' ', dat[11+o]]), 1, 0, kf) # userid x domain			
+			FeatureVectors._set_vector(vector, ''.join(['advidxd-', dat[22+o], ' ', dat[11+o]]), 1, 0, kf) # advertiser id  x domain
+			FeatureVectors._set_vector(vector, ''.join(['uidxadid-', dat[5+o], ' ', dat[14+o]]), 1, 0, kf) # userid x adslot
+
+			tags = dat[23+o].split(',')
+			for tag in tags:
+				FeatureVectors._set_vector(vector, ''.join(['t-', tag]), 1, 0, kf) # tag
+				FeatureVectors._set_vector(vector, ''.join(['dxt-', dat[11+o], ' ', tag]), 1, 0, kf) # domain x tag
+				FeatureVectors._set_vector(vector, ''.join(['useridxt-', dat[5+o], ' ', tag]), 1, 0, kf) # user id x tag
+						
+
+		# Register vector in set
+		self.vectors().append(vector)
+		return vector, self.keys()
+
+
+
+		'''
+		# Non-sparse features
+		FeatureVectors._set_vector(vector, 'const', 1, 1, kf)
+		FeatureVectors._set_vector(vector, 'label', label, None, kf)
+		if label_only == False:
+						#wknd = dat[1+o] #1 if (dat[1+o] == '1' or dat[1+o] == '2') else 0 # 1==Sat, 2==Sun
+			wknd = 1 if (dat[1+o] == '1' or dat[1+o] == '2') else 0
+			FeatureVectors._set_vector(vector, 'wknd', wknd, None, kf)
+			#dt = dat[2+o] #1 if int(dat[2+o]) < 8 or int(dat[2+o]) > 17 else 0 # daytime
+			dt = 1 if int(dat[2+o]) < 8 or int(dat[2+o]) > 17 else 0
+			FeatureVectors._set_vector(vector, 'dt', dt, None, kf)
+			w = int(dat[15+o])
+			h = int(dat[16+o])
+			FeatureVectors._set_vector(vector, 'ad-w', w, None, kf) # ad width
+			FeatureVectors._set_vector(vector, 'ad-h', h, None, kf) # ad height
+			FeatureVectors._set_vector(vector, 'ad-sa', int(math.sqrt(w * h)), None, kf) # DEPENDENT VARIABLE # ad sqrt area
+			FeatureVectors._set_vector(vector, 'ad-v', dat[17+o], None, kf) # ad visibility
+			FeatureVectors._set_vector(vector, 'ad-fp', dat[19+o], None, kf) # ad slot floor price
+
+			# Sparse features
+			#if label == 1 or label == None:
+			FeatureVectors._set_vector(vector, ''.join(['uid-', dat[5+o]]), 1, 0, kf) # user id
+			FeatureVectors._set_vector(vector, ''.join(['advid-', dat[22+o]]), 1, 0, kf) # advertiser id
+
+			FeatureVectors._set_vector(vector, ''.join(['brws-', dat[6+o]]), 1, 0, kf) # browser
+
+			FeatureVectors._set_vector(vector, ''.join(['d-', dat[11+o]]), 1, 0, kf) # domain
+			FeatureVectors._set_vector(vector, ''.join(['dxsid-', dat[11+o], ' ', dat[14+o]]), 1, 0, kf) # domain x ad slot
+			FeatureVectors._set_vector(vector, ''.join(['uidxd-', dat[5+o], ' ', dat[11+o]]), 1, 0, kf) # userid x domain			
+			FeatureVectors._set_vector(vector, ''.join(['advidxd-', dat[22+o], ' ', dat[11+o]]), 1, 0, kf) # advertiser id  x domain
+			FeatureVectors._set_vector(vector, ''.join(['uidxadid-', dat[5+o], ' ', dat[14+o]]), 1, 0, kf) # userid x adslot
+
+			tags = dat[23+o].split(',')
+			for tag in tags:
+				FeatureVectors._set_vector(vector, ''.join(['t-', tag]), 1, 0, kf) # tag
+				FeatureVectors._set_vector(vector, ''.join(['dxt-', dat[11+o], ' ', tag]), 1, 0, kf) # domain x tag
+				FeatureVectors._set_vector(vector, ''.join(['useridxt-', dat[5+o], ' ', tag]), 1, 0, kf) # user id x tag
+						
+
+		# Register vector in set
+		self.vectors().append(vector)
+		return vector, self.keys()
+		'''
+
+		
+		'''
 		# Non-sparse features
 		FeatureVectors._set_vector(vector, 'label', label, None, kf)
 		if label_only == False:
-			wknd = 1 if (dat[1+o] == '1' or dat[1+o] == '2') else 0 # 1==Sat, 2==Sun
+			wknd = dat[1+o] #1 if (dat[1+o] == '1' or dat[1+o] == '2') else 0 # 1==Sat, 2==Sun
 			FeatureVectors._set_vector(vector, 'wknd', wknd, None, kf)
 			dt = 1 if int(dat[2+o]) < 8 or int(dat[2+o]) > 17 else 0 # daytime
 			FeatureVectors._set_vector(vector, 'dt', dt, None, kf)
@@ -213,14 +317,15 @@ class FeatureVectors():
 			FeatureVectors._set_vector(vector, 'ad-v', dat[17+o], None, kf) # ad visibility
 			
 			# Sparse features
-			if label == 1 or label == None:
-				FeatureVectors._set_vector(vector, ''.join(['d-', dat[11+o]]), 1, 0, kf) # domain
-				FeatureVectors._set_vector(vector, ''.join(['dxsid-', dat[11+o], ' ', dat[14+o]]), 1, 0, kf) # domain x ad slot
-				tags = dat[23+o].split(',')
-				for tag in tags:
-					FeatureVectors._set_vector(vector, ''.join(['t-', tag]), 1, 0, kf) # tag
-					FeatureVectors._set_vector(vector, ''.join(['dxt-', dat[11+o], ' ', tag]), 1, 0, kf) # domain x tag
+			#if label == 1 or label == None:
+			FeatureVectors._set_vector(vector, ''.join(['d-', dat[11+o]]), 1, 0, kf) # domain
+			FeatureVectors._set_vector(vector, ''.join(['dxsid-', dat[11+o], ' ', dat[14+o]]), 1, 0, kf) # domain x ad slot
+			tags = dat[23+o].split(',')
+			for tag in tags:
+				FeatureVectors._set_vector(vector, ''.join(['t-', tag]), 1, 0, kf) # tag
+				FeatureVectors._set_vector(vector, ''.join(['dxt-', dat[11+o], ' ', tag]), 1, 0, kf) # domain x tag
 		
 		# Register vector in set
 		self.vectors().append(vector)
 		return vector, self.keys()
+		'''

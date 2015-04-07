@@ -1,41 +1,56 @@
 import numpy as np
+import math
 from sklearn import linear_model
 from sklearn import cross_validation
 import time
 import pickle as pickle
 import csv
+from sklearn.metrics import roc_curve, auc
+import matplotlib.pyplot as plt
+from scipy import interp
+from sklearn.cross_validation import train_test_split
+
+DEBUG = 1
+
 
 def _load_data():
 	xs_train = []
-	with open('gendata/xs_train20k.dat', 'rb') as infile:
+	with open('gendata/xs_trainsubKF.dat', 'rb') as infile:
 	    xs_train = pickle.load(infile)
-	ys_train = np.load('gendata/ys_train20k.npy')
+	ys_train = np.load('gendata/ys_trainsubKF.npy')
 
 	xs_test = []	
-	with open('gendata/xs_test20k.dat', 'rb') as infile:
+	with open('gendata/xs_testsubKF.dat', 'rb') as infile:
 	    xs_test = pickle.load(infile)
 
 	print("Loaded data files")
 	return xs_train, ys_train, xs_test
 
-def _load_keys_and_vect():	
+def _load_keys():	
 
-	training_vectors = {}
 	x_keys_train = {}
-	with open('gendata/train_vect20k.dat', 'rb') as infile:
-	    training_vectors = pickle.load(infile)
-	with open('gendata/xkeys_train20k.dat', 'rb') as infile:
+	with open('gendata/xkeys_trainsubKF.dat', 'rb') as infile:
 	    x_keys_train = pickle.load(infile)
 
-	test_vectors = {}	
 	x_keys_test = {}
-	with open('gendata/test_vect20k.dat', 'rb') as infile:
-	    test_vectors = pickle.load(infile)
-	with open('gendata/xkeys_test20k.dat', 'rb') as infile:
+	with open('gendata/xkeys_testsubKF.dat', 'rb') as infile:
 	    x_keys_test = pickle.load(infile)
 
 	print("Loaded key and vect files")
-	return training_vectors, x_keys_train, test_vectors, x_keys_test
+	return x_keys_train, x_keys_test
+
+def _load_vect():	
+
+	training_vectors = {}
+	with open('gendata/train_vectsubKF.dat', 'rb') as infile:
+	    training_vectors = pickle.load(infile)
+
+	test_vectors = {}	
+	with open('gendata/test_vectsubKF.dat', 'rb') as infile:
+	    test_vectors = pickle.load(infile)
+
+	print("Loaded key and vect files")
+	return training_vectors, test_vectors
 
 
 def _to_info_file(file_path, fvs, ys_pred, keyed_coeffs):
@@ -65,6 +80,24 @@ def _to_info_file(file_path, fvs, ys_pred, keyed_coeffs):
 		f.write(''.join([str(i+1), ',', str(ys_pred[i]), key_str]))
 	f.close()
 
+def key_histogram(dict):
+	count = {}
+	for k in dict.keys():
+		#if len(k) > 5:
+		key = k.split('-')[0]
+		if key == None:
+			key = k
+		if key in count:
+			count[key] += 1
+		else:
+			count[key] = 1
+
+	print(count)
+
+
+def dprint(string):
+	if DEBUG == 1: print(string)
+
 
 start = time.time()
 
@@ -72,68 +105,83 @@ np.set_printoptions(threshold=np.nan)
 
 xs_train, ys_train, xs_test = _load_data()
 
+'''
+N = 2847802 # Training set size
+len ys:  209676
+1s len:  2076
+0s len:  207600
+
+N zeros = 2845726
+
+x : 100 = 207600 : 2845726
+x = 7.29
+
+weight = 1/(207600/2845726)
+'''
+
 # Initialize linear model
-clf = linear_model.LogisticRegression(C=10.0, penalty='l1') #, tol=0.001)
+C = 0.09
+dprint("C = ", C)
+weight = {0: 1/(207600/2845726), 1: 1}
 
-best_clf = clf
-best_mse = float("inf")
+clf = linear_model.LogisticRegression(C=C, penalty='l1', class_weight=weight, random_state=1)
 
-# Split input for 5 fold cross validation
-cv = cross_validation.KFold(len(ys_train), 2, shuffle = True,  random_state=2876)
-
-mses = []
-
-for traincv, testcv in cv:
-	X_train = xs_train[traincv]
-	y_train = ys_train[traincv]
-
-	X_test = xs_train[testcv]
-	y_test = ys_train[testcv]
-
-	clf.fit(X_train, y_train)
-
-	if(best_mse == float("inf")):
-		best_clf = clf
-
-	p = clf.predict(X_test)
-
-	mse = ((p - y_test) ** 2).mean()
-	print("mse: ", mse)
-	if(mse < best_mse):
-		best_mse = mse
-		best_clf = clf
-	mses.append(mse)
+#clf = linear_model.RandomizedLogisticRegression(C=C, normalize=True, n_resampling=int(l/4), random_state=1)
+X_train, X_test, y_train, y_test = train_test_split(xs_train, ys_train, test_size = 0.25, random_state = 0)
 
 
-clf = best_clf
-print("Using clf with MSE: ", best_mse)
+clf.fit(X_train, y_train)
+p = clf.predict_proba(X_test)
 
-mses = np.array(mses)
-print("\n\nAVG MSE: ", np.mean(mses))
+mse = ((p[:,1] - y_test) ** 2).mean()
+rmse = math.sqrt(mse)
+dprint("rmse: ", rmse)
+
+# Compute ROC curve and area the curve
+fpr, tpr, thresholds = roc_curve(y_test, p[:,1])
+auc_res = auc(fpr, tpr)
+dprint("auc = ", auc_res)
+
+auc_bas = 0.999
+# (AUC - 0.5) / (AUC_BASE - 0.5)
+r = (auc_res - 0.5) / (auc_bas - 0.5)
+
+dprint("result: ", r)
+
+#plt.plot(fpr, tpr, lw=1, label='ROC fold %d (area = %0.2f)' % (i, roc_auc_bas))
+#plt.show()
+
+
+clf.fit(xs_train, ys_train)
+coefs = clf.coef_
 
 p = clf.predict_proba(xs_test)
-#print(clf.classes_)
-
 n = len(p)
 
 i = np.arange(1, n + 1, 1, dtype='int').reshape(n, 1)
 out = np.append(i, p[:,1].reshape(n, 1), axis=1)
 
-print("Generating out csv file")
-np.savetxt("outs/out20k.csv", out, fmt='%.7G', delimiter=',', header='Id,Prediction')
+dprint("Generating out csv file")
+np.savetxt("outs/outl1BIG09.csv", out, fmt='%.7G', delimiter=',', header='Id,Prediction')
 
-print("Saving info files")
-training_vectors, x_keys_train, test_vectors, x_keys_test = _load_keys_and_vect()
+dprint("Generating key info")
+x_keys_train, x_keys_test = _load_keys()
 
 keyed_coeffs = {}
 for key in x_keys_train:
-	coef = clf.coef_[0][x_keys_test[key]]
+	coef = coefs[0][x_keys_test[key]]
 	if coef != 0: keyed_coeffs[key] = coef
-print(''.join(['Nonzero coefficients: ', str(keyed_coeffs)]))
+dprint(''.join(['Nonzero coefficients: ', str(keyed_coeffs)]))
 
-_to_info_file('outs/test_out.csv', test_vectors, p, keyed_coeffs)
+key_histogram(keyed_coeffs)
 
-_to_info_file('outs/training_out.csv', training_vectors, clf.predict_proba(xs_train), keyed_coeffs)
+dprint("from ", len(x_keys_train.values()), " keys, the nonzero ones are ", len(keyed_coeffs.values()))
+dprint("max coef = ", np.max(coefs), ", min coef = ", np.min(coefs))
+dprint("max pred = ", np.max(p), ", min pred = ", np.min(p))
+
 
 end = time.time()
-print('\ntime elapsed: ', end - start)
+dprint('\ntime elapsed: ', end - start)
+
+
+

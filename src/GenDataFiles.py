@@ -4,6 +4,7 @@ from sklearn import cross_validation
 import time
 import pickle as pickle
 import random as r
+import gc
 
 from FeatureVectors import FeatureVectors
 
@@ -16,6 +17,8 @@ DEBUG = 1
 # UDOM = 15146 # Number of unique domains
 # CLICKS = 2076 # Number of clicks
 # UDOMC = 432 # Number of unique domains with clicks
+
+# 
 
 def dprint(string):
 	if DEBUG == 1: print(string)
@@ -90,7 +93,7 @@ def _generate_fvs(file_path, is_training_data, domains_filter = None, key_filter
 
 start = time.time()
 
-FILTER_CLICKED_DOMAINS = True
+FILTER_CLICKED_DOMAINS = False
 SUBSAMPLE_MULTIPLE = 100 # Multiple of negative training examples to positive. Integer value only
 
 
@@ -102,7 +105,7 @@ else:
 
 
 # Generate training set, ignoring domains without any clicks at all
-training_vectors, n_train, dim_train = _generate_fvs(TRAIN_DATA_PATH, is_training_data = True, domains_filter = clicked_domains, limit = 20000)
+training_vectors, n_train, dim_train = _generate_fvs(TRAIN_DATA_PATH, is_training_data = True, domains_filter = clicked_domains) #, limit = 20000)
 
 # Deterministically select the first n negative training examples for reproducibility
 dprint(''.join(['Subsampling negative training examples at ', str(SUBSAMPLE_MULTIPLE), 'x number of positive training examples.']))
@@ -122,40 +125,51 @@ training_vectors.set_vectors([training_vectors.vectors()[i] for i in training_su
 xs, ys, x_keys = training_vectors.as_scipy_sparse()
 
 # Save train X
-with open('gendata/xs_train20k.dat', 'wb') as outfile:
+with open('gendata/xs_trainsubKF.dat', 'wb') as outfile:
     pickle.dump(xs, outfile, pickle.HIGHEST_PROTOCOL)
 
+# unreference
+del(xs)
+# garbage collect
+gc.collect()
+
 # Save y
-np.save('gendata/ys_train20k', ys)
+np.save('gendata/ys_trainsubKF', ys)
+del(ys)
 
 # Save keys
-with open('gendata/xkeys_train20k.dat', 'wb') as outfile:
+with open('gendata/xkeys_trainsubKF.dat', 'wb') as outfile:
     pickle.dump(x_keys, outfile, pickle.HIGHEST_PROTOCOL)
+del(x_keys)
 
 # Save train vectors
-with open('gendata/train_vect20k.dat', 'wb') as outfile:
+with open('gendata/train_vectsubKF.dat', 'wb') as outfile:
     pickle.dump(training_vectors, outfile, pickle.HIGHEST_PROTOCOL)
-
 
 # Generate test set, limiting features to those in training set
 training_set_keys = training_vectors.keys()
-test_vectors, n_test, dim_test = _generate_fvs(TEST_DATA_PATH, is_training_data = False, domains_filter = None, key_filter = training_set_keys, limit = 20000)
+del(training_vectors)
+gc.collect()
+test_vectors, n_test, dim_test = _generate_fvs(TEST_DATA_PATH, is_training_data = False, domains_filter = None, key_filter = training_set_keys) #, limit = 20000)
 
 # Ignore ys 
 xs, ys, x_keys = test_vectors.as_scipy_sparse()
 
 # Save test X
-with open('gendata/xs_test20k.dat', 'wb') as outfile:
+with open('gendata/xs_testsubKF.dat', 'wb') as outfile:
     pickle.dump(xs, outfile, pickle.HIGHEST_PROTOCOL)
+del(xs)
+gc.collect()
 
 # Save keys
-with open('gendata/xkeys_test20k.dat', 'wb') as outfile:
+with open('gendata/xkeys_testsubKF.dat', 'wb') as outfile:
     pickle.dump(x_keys, outfile, pickle.HIGHEST_PROTOCOL)
+del(x_keys)
 
 # Save test vectors
-with open('gendata/test_vect20k.dat', 'wb') as outfile:
+with open('gendata/test_vectsubKF.dat', 'wb') as outfile:
     pickle.dump(test_vectors, outfile, pickle.HIGHEST_PROTOCOL)
-
+del(test_vectors)
 
 end = time.time()
 print('\ntime elapsed: ', end - start)

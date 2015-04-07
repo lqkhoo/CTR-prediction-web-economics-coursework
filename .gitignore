@@ -5,10 +5,13 @@
 *.pdf
 *.csv
 *.tsv
+data_test.tsv
+data_train.tsv
+*.dat
 data_test.txt
 data_train.txt
-*.dat
-
+*.txt
+*.npy
 
 # Windows image file caches
 Thumbs.db
